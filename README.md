@@ -35,7 +35,7 @@ Every run is captured by the Evaluator to RDS + CloudWatch.
 ## File Structure
 
 ```
-multi_agent/
+one-desk-ai/
 ├── config/
 │   ├── agents.yaml          # orgs, model, guardrails, routing — EDIT THIS
 │   └── settings.py          # loads yaml + resolves ${ENV_VARS}
@@ -126,7 +126,7 @@ Add both values to your `.env` file before running the server.
 
 ### 1B. Install
 ```bash
-cd multi_agent
+cd one-desk-ai
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

@@ -65,7 +65,7 @@ The fastest path uses Docker Compose, which starts a local PostgreSQL (pre-loade
 ### Step 1 — Install and configure
 
 ```
-cd multi_agent
+cd one-desk-ai
 cp .env.example .env
 ```
 
