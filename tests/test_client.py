@@ -52,7 +52,7 @@ async def run(query: str):
 
 
 if __name__ == "__main__":
-    # How GenAI differs from Traditional AI
+    # How GenAI differs from Traditional AI 
     # What is in the science paper about photosynthesis from internal document
 
     query = sys.argv[1] if len(sys.argv) > 1 else "What orders were placed from past one week? Show me the order details."
