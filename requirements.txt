@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-Agent LangGraph Project — pinned dependencies (June 2026)
+#
+# VERSION SAFETY NOTES (Mani — this avoids the mismatch pain):
+#   - langgraph 1.x and langchain-core 1.x are major-version aligned.
+#   - We pin the TOP-LEVEL packages only. We let langgraph pull its own
+#     sub-deps (langgraph-checkpoint, langgraph-prebuilt, langgraph-sdk).
+#     Manually pinning those sub-deps is the #1 cause of mismatch errors.
+#   - If you must upgrade, upgrade langgraph + langchain-core + langchain-aws
+#     TOGETHER, never one in isolation.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── LangGraph + LangChain core ───────────────────────────────────────────────
+langgraph==1.2.4
+langchain-core==1.4.3
+langchain-aws==1.5.0          # ChatBedrock lives here
+
+# ── AWS ──────────────────────────────────────────────────────────────────────
+boto3>=1.34.0
+botocore>=1.34.0
+
+# ── OpenSearch (reuse existing RAG pipeline domain) ──────────────────────────
+opensearch-py>=2.4.0
+requests-aws4auth>=1.3.0
+
+# ── PostgreSQL (RDS — SQL Agent + eval storage) ──────────────────────────────
+psycopg[binary]>=3.1.0        # psycopg3 — modern, not psycopg2
+sqlalchemy>=2.0.0
+
+# ── FastAPI + WebSocket ──────────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0     # [standard] includes websockets + uvloop
+websockets>=12.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+
+# ── Research Agent (Google CSE + URL reading) ────────────────────────────────
+httpx>=0.27.0
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+
+# ── Config + utilities ───────────────────────────────────────────────────────
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+tenacity>=8.2.0               # retry logic for Bedrock throttling

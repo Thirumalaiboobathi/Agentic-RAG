@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Agent Chat</title>
+
+  <!-- ─── CDN Dependencies ──────────────────────────────────────────────── -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet" />
+
+  <style>
+    /* ─── Reset & Base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:   #212121;
+      --bg-secondary: #2f2f2f;
+      --bg-input:     #2f2f2f;
+      --bg-sidebar:   #171717;
+      --border:       #3f3f3f;
+      --text-primary: #ececec;
+      --text-muted:   #8e8ea0;
+      --accent:       #10a37f;
+      --accent-hover: #0d8c6d;
+      --user-bubble:  #2f2f2f;
+      --agent-badge-knowledge: #6366f1;
+      --agent-badge-sql:       #f59e0b;
+      --agent-badge-research:  #06b6d4;
+      --agent-badge-author:    #10a37f;
+      --agent-badge-guardrail: #ef4444;
+      --agent-badge-orchestrator: #8b5cf6;
+      --error-color:  #ef4444;
+      --radius:       12px;
+      --radius-sm:    8px;
+      --transition:   0.2s ease;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ─── Sidebar ───────────────────────────────────────────────────────── */
+    #sidebar {
+      width: 260px;
+      background: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      flex-shrink: 0;
+      transition: width var(--transition);
+    }
+
+    #sidebar.collapsed { width: 0; overflow: hidden; }
+
+    .sidebar-header {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    #new-chat-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background var(--transition);
+    }
+    #new-chat-btn:hover { background: var(--bg-secondary); }
+
+    .sidebar-section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 12px 16px 6px;
+    }
+
+    #history-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 8px;
+    }
+
+    .history-item {
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background var(--transition), color var(--transition);
+    }
+    .history-item:hover, .history-item.active {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .sidebar-user-name {
+      font-size: 13px;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    /* ─── Status dot ────────────────────────────────────────────────────── */
+    #connection-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--error-color);
+      margin-left: auto;
+      flex-shrink: 0;
+      transition: background var(--transition);
+    }
+    #connection-status.connected { background: var(--accent); }
+
+    /* ─── Main layout ───────────────────────────────────────────────────── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      position: relative;
+    }
+
+    /* ─── Top bar ───────────────────────────────────────────────────────── */
+    #topbar {
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    #toggle-sidebar {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color var(--transition), background var(--transition);
+      line-height: 1;
+    }
+    #toggle-sidebar:hover { color: var(--text-primary); background: var(--bg-secondary); }
+
+    #model-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    #health-badge {
+      margin-left: auto;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      background: transparent;
+    }
+    #health-badge.ok { color: var(--accent); border-color: var(--accent); }
+    #health-badge.err { color: var(--error-color); border-color: var(--error-color); }
+
+    /* ─── Chat area ─────────────────────────────────────────────────────── */
+    #chat-scroll {
+      flex: 1;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+
+    #chat-scroll::-webkit-scrollbar { width: 6px; }
+    #chat-scroll::-webkit-scrollbar-track { background: transparent; }
+    #chat-scroll::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    #chat-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 24px 0;
+    }
+
+    /* ─── Welcome screen ────────────────────────────────────────────────── */
+    #welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px 40px;
+      text-align: center;
+    }
+
+    .welcome-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 20px;
+    }
+
+    #welcome h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    #welcome p {
+      font-size: 15px;
+      color: var(--text-muted);
+      max-width: 440px;
+      line-height: 1.6;
+    }
+
+    .suggestion-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 32px;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .suggestion-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      cursor: pointer;
+      text-align: left;
+      transition: background var(--transition), border-color var(--transition);
+    }
+    .suggestion-card:hover {
+      background: #3a3a3a;
+      border-color: #555;
+    }
+    .suggestion-card .s-icon {
+      font-size: 18px;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .suggestion-card .s-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .suggestion-card .s-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ─── Message bubbles ───────────────────────────────────────────────── */
+    .message-group {
+      margin-bottom: 28px;
+    }
+
+    .message-row {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 2px;
+    }
+
+    .message-row.user { flex-direction: row-reverse; }
+
+    .msg-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .msg-avatar.user-av { background: #5d5dff; }
+    .msg-avatar.bot-av  { background: var(--accent); }
+
+    .msg-bubble {
+      max-width: 75%;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      line-height: 1.7;
+      word-wrap: break-word;
+    }
+
+    .user .msg-bubble {
+      background: var(--user-bubble);
+      border-bottom-right-radius: 4px;
+    }
+
+    .bot .msg-bubble {
+      background: transparent;
+      padding: 12px 0;
+      max-width: 100%;
+    }
+
+    .bot .msg-bubble p { margin-bottom: 8px; }
+    .bot .msg-bubble p:last-child { margin-bottom: 0; }
+
+    /* ─── Thinking / progress panel ─────────────────────────────────────── */
+    .thinking-panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 4px 0 10px 46px;
+      overflow: hidden;
+    }
+
+    .thinking-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .thinking-toggle:hover { color: var(--text-primary); }
+
+    .thinking-toggle .chevron {
+      font-size: 10px;
+      transition: transform var(--transition);
+    }
+    .thinking-toggle.open .chevron { transform: rotate(180deg); }
+
+    .thinking-body {
+      display: none;
+      padding: 0 14px 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .progress-event {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 12px;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    .progress-event:last-child { border-bottom: none; }
+
+    .ev-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .ev-badge.knowledge    { background: var(--agent-badge-knowledge); }
+    .ev-badge.sql          { background: var(--agent-badge-sql); color: #000; }
+    .ev-badge.research     { background: var(--agent-badge-research); }
+    .ev-badge.author       { background: var(--agent-badge-author); }
+    .ev-badge.guardrail    { background: var(--agent-badge-guardrail); }
+    .ev-badge.orchestrator { background: var(--agent-badge-orchestrator); }
+    .ev-badge.system       { background: #555; }
+
+    .ev-message { color: var(--text-muted); line-height: 1.5; }
+
+    /* ─── Spinner inside thinking ────────────────────────────────────────── */
+    .thinking-spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Error bubble ───────────────────────────────────────────────────── */
+    .error-bubble {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 13px;
+      margin: 4px 0 10px 46px;
+    }
+
+    /* ─── Typing dots ────────────────────────────────────────────────────── */
+    .typing-dots { display: flex; gap: 4px; padding: 4px 0; }
+    .typing-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: dot-bounce 1.4s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot-bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40%           { transform: translateY(-6px); }
+    }
+
+    /* ─── Sources section ────────────────────────────────────────────────── */
+    .sources-section {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .sources-section strong { display: block; margin-bottom: 4px; }
+    .source-pill {
+      display: inline-block;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin: 2px 4px 2px 0;
+      font-size: 11px;
+    }
+
+    /* ─── Agent route tag ────────────────────────────────────────────────── */
+    .route-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .route-tag.knowledge    { background: var(--agent-badge-knowledge); }
+    .route-tag.sql          { background: var(--agent-badge-sql); color: #000; }
+    .route-tag.research     { background: var(--agent-badge-research); }
+    .route-tag.author       { background: var(--agent-badge-author); }
+    .route-tag.guardrail    { background: var(--agent-badge-guardrail); }
+    .route-tag.blocked      { background: var(--agent-badge-guardrail); }
+
+    /* ─── Input area ─────────────────────────────────────────────────────── */
+    #input-area {
+      padding: 16px 24px 20px;
+      flex-shrink: 0;
+    }
+
+    .input-wrapper {
+      max-width: 800px;
+      margin: 0 auto;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 10px 10px 10px 16px;
+      transition: border-color var(--transition);
+    }
+    .input-wrapper:focus-within { border-color: #555; }
+
+    #user-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 15px;
+      font-family: inherit;
+      resize: none;
+      max-height: 200px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    #user-input::placeholder { color: var(--text-muted); }
+    #user-input::-webkit-scrollbar { width: 4px; }
+    #user-input::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    #send-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+      transition: background var(--transition), opacity var(--transition);
+    }
+    #send-btn:hover  { background: var(--accent-hover); }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #stop-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      transition: background var(--transition);
+    }
+    #stop-btn:hover { background: #3a3a3a; color: var(--text-primary); }
+    #stop-btn.visible { display: flex; }
+
+    .input-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* ─── Code blocks in response ────────────────────────────────────────── */
+    .bot .msg-bubble pre {
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-size: 12px;
+      overflow-x: auto;
+      margin: 8px 0;
+      font-family: 'Courier New', monospace;
+      line-height: 1.6;
+    }
+    .bot .msg-bubble code {
+      background: #1a1a1a;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* ─── Responsive ─────────────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      #sidebar { width: 0; overflow: hidden; }
+      .suggestion-grid { grid-template-columns: 1fr; }
+      .msg-bubble { max-width: 90%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Sidebar ────────────────────────────────────────────────────────── -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <h2>Multi-Agent</h2>
+    <button id="new-chat-btn"><i class="fa fa-plus"></i> New chat</button>
+  </div>
+  <div class="sidebar-section-label">Recent</div>
+  <div id="history-list"></div>
+  <div class="sidebar-footer">
+    <div class="avatar">M</div>
+    <span class="sidebar-user-name">User</span>
+    <div id="connection-status" title="WebSocket disconnected"></div>
+  </div>
+</aside>
+
+<!-- ─── Main ───────────────────────────────────────────────────────────── -->
+<main id="main">
+
+  <!-- Topbar -->
+  <div id="topbar">
+    <button id="toggle-sidebar" title="Toggle sidebar">
+      <i class="fa fa-bars"></i>
+    </button>
+    <span id="model-label">Multi-Agent Graph</span>
+    <span id="health-badge">Checking…</span>
+  </div>
+
+  <!-- Chat messages -->
+  <div id="chat-scroll">
+    <div id="chat-container">
+
+      <!-- Welcome screen (hidden once a message is sent) -->
+      <div id="welcome">
+        <div class="welcome-icon">&#x1F916;</div>
+        <h1>Multi-Agent Assistant</h1>
+        <p>
+          Powered by a LangGraph orchestrator that routes your questions to
+          Knowledge, SQL, or Research agents and composes a polished answer.
+        </p>
+        <div class="suggestion-grid">
+          <div class="suggestion-card" data-q="How many orders were placed yesterday?">
+            <span class="s-icon">&#x1F4CA;</span>
+            <div class="s-title">SQL Data Query</div>
+            <div class="s-desc">How many orders were placed yesterday?</div>
+          </div>
+          <div class="suggestion-card" data-q="What is our SLA for critical incidents?">
+            <span class="s-icon">&#x1F4DA;</span>
+            <div class="s-title">Knowledge Base</div>
+            <div class="s-desc">What is our SLA for critical incidents?</div>
+          </div>
+          <div class="suggestion-card" data-q="What are the latest trends in generative AI?">
+            <span class="s-icon">&#x1F50D;</span>
+            <div class="s-title">Research</div>
+            <div class="s-desc">What are the latest trends in generative AI?</div>
+          </div>
+          <div class="suggestion-card" data-q="Summarize the runbook for deployment rollbacks">
+            <span class="s-icon">&#x1F4CB;</span>
+            <div class="s-title">Runbook Lookup</div>
+            <div class="s-desc">Summarize the runbook for deployment rollbacks</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /chat-container -->
+  </div><!-- /chat-scroll -->
+
+  <!-- Input area -->
+  <div id="input-area">
+    <div class="input-wrapper">
+      <textarea id="user-input" rows="1"
+                placeholder="Message Multi-Agent…"
+                aria-label="Chat input"></textarea>
+      <button id="stop-btn" title="Stop generation">
+        <i class="fa fa-stop"></i>
+      </button>
+      <button id="send-btn" title="Send message" disabled>
+        <i class="fa fa-paper-plane"></i>
+      </button>
+    </div>
+    <div class="input-hint">
+      Routes automatically to Knowledge &bull; SQL &bull; Research agents
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIGURATION — change these variables to point to your backend
+   ═══════════════════════════════════════════════════════════════════════════ */
+const WS_ENDPOINT     = "ws://localhost:8000/ws/agent";   // WebSocket URL
+const HTTP_BASE       = "http://localhost:8000";           // HTTP base (for /health)
+const HEALTH_ENDPOINT = HTTP_BASE + "/health";             // GET health check
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+$(function () {
+
+  /* ── State ──────────────────────────────────────────────────────────── */
+  let socket        = null;
+  let isGenerating  = false;
+  let sessionId     = generateId();
+  let chatHistory   = [];            // [{role, text}]
+  let currentBotDiv = null;         // active bot message container
+  let currentThinking = null;       // active thinking panel
+
+  /* ── Auto-resize textarea ───────────────────────────────────────────── */
+  $('#user-input').on('input', function () {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+    $('#send-btn').prop('disabled', !$(this).val().trim() || isGenerating);
+  });
+
+  /* ── Send on Enter (Shift+Enter = newline) ──────────────────────────── */
+  $('#user-input').on('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!$(this).val().trim() || isGenerating) return;
+      sendMessage();
+    }
+  });
+
+  $('#send-btn').on('click', sendMessage);
+  $('#stop-btn').on('click', stopGeneration);
+
+  /* ── Sidebar toggle ─────────────────────────────────────────────────── */
+  $('#toggle-sidebar').on('click', function () {
+    $('#sidebar').toggleClass('collapsed');
+  });
+
+  /* ── New chat ───────────────────────────────────────────────────────── */
+  $('#new-chat-btn').on('click', function () {
+    saveCurrentChat();
+    startNewChat();
+  });
+
+  /* ── Suggestion cards ───────────────────────────────────────────────── */
+  $(document).on('click', '.suggestion-card', function () {
+    const q = $(this).data('q');
+    $('#user-input').val(q).trigger('input');
+    sendMessage();
+  });
+
+  /* ── Health check ───────────────────────────────────────────────────── */
+  checkHealth();
+  setInterval(checkHealth, 30000);
+
+  /* ── WebSocket connection ───────────────────────────────────────────── */
+  connectWebSocket();
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     FUNCTIONS
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  function connectWebSocket() {
+    if (socket && (socket.readyState === WebSocket.OPEN ||
+                   socket.readyState === WebSocket.CONNECTING)) return;
+
+    socket = new WebSocket(WS_ENDPOINT);
+
+    socket.onopen = function () {
+      setConnectionStatus(true);
+    };
+
+    socket.onclose = function () {
+      setConnectionStatus(false);
+      // Auto-reconnect after 3 seconds
+      setTimeout(connectWebSocket, 3000);
+    };
+
+    socket.onerror = function () {
+      setConnectionStatus(false);
+    };
+
+    socket.onmessage = function (event) {
+      try {
+        const msg = JSON.parse(event.data);
+        handleServerEvent(msg);
+      } catch (e) {
+        console.error('Failed to parse server message', e);
+      }
+    };
+  }
+
+  function handleServerEvent(msg) {
+    const { event, agent, message, data, trace_id } = msg;
+
+    switch (event) {
+
+      case 'agent_selected':
+        addThinkingEvent(agent, 'Selected agent: ' + agent.toUpperCase(), true);
+        updateRouteTag(agent);
+        break;
+
+      case 'agent_progress':
+        addThinkingEvent(agent, message);
+        break;
+
+      case 'guardrail_blocked':
+        addThinkingEvent('guardrail', message);
+        updateRouteTag('guardrail');
+        break;
+
+      case 'agent_complete':
+        finishThinking();
+        const response = data && data.response ? data.response : message || '';
+        const sources  = data && data.sources   ? data.sources  : [];
+        renderFinalResponse(response, sources, agent);
+        break;
+
+      case 'eval_captured':
+        addThinkingEvent('system', 'Evaluation captured — trace ' + (trace_id || ''));
+        break;
+
+      case 'turn_complete':
+        setGenerating(false);
+        break;
+
+      case 'error':
+        finishThinking();
+        renderError(message || 'Unknown error');
+        setGenerating(false);
+        break;
+
+      default:
+        // Unknown event — log it in the thinking panel
+        if (message) addThinkingEvent(agent || 'system', '[' + event + '] ' + message);
+    }
+  }
+
+  /* ── Send a message ─────────────────────────────────────────────────── */
+  function sendMessage() {
+    const text = $('#user-input').val().trim();
+    if (!text || isGenerating) return;
+
+    // Hide welcome screen
+    $('#welcome').hide();
+
+    // Append user bubble
+    appendUserMessage(text);
+
+    // Clear input
+    $('#user-input').val('').css('height', 'auto');
+    $('#send-btn').prop('disabled', true);
+
+    // Prepare bot response slot
+    currentBotDiv = createBotMessageSlot();
+    currentThinking = createThinkingPanel();
+
+    setGenerating(true);
+
+    // Ensure connected before sending
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ session_id: sessionId, query: text }));
+    } else {
+      renderError('WebSocket not connected. Reconnecting…');
+      setGenerating(false);
+      connectWebSocket();
+    }
+
+    chatHistory.push({ role: 'user', text });
+    scrollToBottom();
+  }
+
+  function stopGeneration() {
+    setGenerating(false);
+    finishThinking();
+    if (currentBotDiv) {
+      const bubble = currentBotDiv.find('.msg-bubble');
+      if (!bubble.text().trim()) {
+        bubble.html('<em style="color:var(--text-muted)">Generation stopped.</em>');
+      }
+    }
+  }
+
+  /* ── DOM helpers ────────────────────────────────────────────────────── */
+
+  function appendUserMessage(text) {
+    const escaped = escapeHtml(text).replace(/\n/g, '<br>');
+    const html = `
+      <div class="message-group">
+        <div class="message-row user">
+          <div class="msg-avatar user-av"><i class="fa fa-user"></i></div>
+          <div class="msg-bubble">${escaped}</div>
+        </div>
+      </div>`;
+    $('#chat-container').append(html);
+  }
+
+  function createBotMessageSlot() {
+    const id = 'bot-' + generateId();
+    const html = `
+      <div class="message-group" id="${id}">
+        <div class="message-row bot">
+          <div class="msg-avatar bot-av"><i class="fa fa-robot"></i></div>
+          <div class="msg-content" style="flex:1;min-width:0;">
+            <div class="route-tag-wrap"></div>
+            <div class="msg-bubble">
+              <div class="typing-dots">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    $('#chat-container').append(html);
+    return $('#' + id);
+  }
+
+  function createThinkingPanel() {
+    if (!currentBotDiv) return null;
+    const panel = $(`
+      <div class="thinking-panel">
+        <div class="thinking-toggle">
+          <div class="thinking-spinner"></div>
+          <span class="thinking-label">Thinking…</span>
+          <i class="fa fa-chevron-down chevron" style="margin-left:auto"></i>
+        </div>
+        <div class="thinking-body"></div>
+      </div>`);
+
+    panel.find('.thinking-toggle').on('click', function () {
+      $(this).toggleClass('open');
+      panel.find('.thinking-body').slideToggle(150);
+    });
+
+    currentBotDiv.find('.msg-content').prepend(panel);
+    return panel;
+  }
+
+  function addThinkingEvent(agent, message, isSelected) {
+    if (!currentThinking) return;
+    const badgeClass = agent ? agent.toLowerCase() : 'system';
+    const event = $(`
+      <div class="progress-event">
+        <span class="ev-badge ${badgeClass}">${agent || 'system'}</span>
+        <span class="ev-message">${escapeHtml(message || '')}</span>
+      </div>`);
+    currentThinking.find('.thinking-body').append(event);
+    scrollToBottom();
+  }
+
+  function updateRouteTag(agent) {
+    if (!currentBotDiv) return;
+    const label = agent ? agent.charAt(0).toUpperCase() + agent.slice(1) : '';
+    const tag = $(`<span class="route-tag ${agent.toLowerCase()}">
+      <i class="fa fa-route"></i> ${label} Agent
+    </span>`);
+    currentBotDiv.find('.route-tag-wrap').html(tag);
+  }
+
+  function finishThinking() {
+    if (!currentThinking) return;
+    currentThinking.find('.thinking-spinner').remove();
+    currentThinking.find('.thinking-label').text('Agent trace');
+  }
+
+  function renderFinalResponse(text, sources, agent) {
+    if (!currentBotDiv) return;
+    const bubble = currentBotDiv.find('.msg-bubble');
+    bubble.html(formatMarkdown(text));
+
+    if (sources && sources.length) {
+      const pills = sources.map(s =>
+        `<span class="source-pill">${escapeHtml(String(s))}</span>`
+      ).join('');
+      bubble.append(`
+        <div class="sources-section">
+          <strong>Sources</strong>${pills}
+        </div>`);
+    }
+
+    chatHistory.push({ role: 'assistant', text, agent });
+    saveHistoryItem(text);
+    scrollToBottom();
+  }
+
+  function renderError(message) {
+    if (!currentBotDiv) return;
+    currentBotDiv.find('.msg-bubble').html(
+      `<span style="color:var(--error-color)"><i class="fa fa-triangle-exclamation"></i> ${escapeHtml(message)}</span>`
+    );
+  }
+
+  /* ── Generating state ───────────────────────────────────────────────── */
+  function setGenerating(val) {
+    isGenerating = val;
+    $('#send-btn').prop('disabled', val || !$('#user-input').val().trim());
+    $('#stop-btn').toggleClass('visible', val);
+    if (!val) {
+      currentBotDiv    = null;
+      currentThinking  = null;
+    }
+  }
+
+  /* ── History sidebar ────────────────────────────────────────────────── */
+  function saveHistoryItem(responseText) {
+    const preview = responseText.substring(0, 50).replace(/\s+/g, ' ') + '…';
+    const item = $(`<div class="history-item active">${escapeHtml(preview)}</div>`);
+    $('#history-list .history-item').removeClass('active');
+    $('#history-list').prepend(item);
+  }
+
+  function saveCurrentChat() {
+    // In a real app you'd persist this; here we just keep the DOM
+  }
+
+  function startNewChat() {
+    sessionId = generateId();
+    chatHistory = [];
+    $('#chat-container').children(':not(#welcome)').remove();
+    $('#welcome').show();
+    currentBotDiv   = null;
+    currentThinking = null;
+    setGenerating(false);
+  }
+
+  /* ── Health check ───────────────────────────────────────────────────── */
+  function checkHealth() {
+    $.ajax({
+      url: HEALTH_ENDPOINT,
+      method: 'GET',
+      timeout: 4000,
+      success: function (data) {
+        $('#health-badge')
+          .text(data.status === 'healthy' ? '● Healthy' : '● ' + data.status)
+          .removeClass('err').addClass('ok');
+      },
+      error: function () {
+        $('#health-badge')
+          .text('● Unreachable')
+          .removeClass('ok').addClass('err');
+      }
+    });
+  }
+
+  /* ── Connection status dot ──────────────────────────────────────────── */
+  function setConnectionStatus(connected) {
+    const dot = $('#connection-status');
+    dot.toggleClass('connected', connected);
+    dot.attr('title', connected ? 'WebSocket connected' : 'WebSocket disconnected');
+  }
+
+  /* ── Scroll to bottom ───────────────────────────────────────────────── */
+  function scrollToBottom() {
+    const el = document.getElementById('chat-scroll');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  /* ── Utilities ──────────────────────────────────────────────────────── */
+  function generateId() {
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Minimal markdown: **bold**, `code`, ```blocks```, newlines
+  function formatMarkdown(text) {
+    let html = escapeHtml(text);
+
+    // Code blocks (``` ... ```)
+    html = html.replace(/```([\s\S]*?)```/g, function (_, code) {
+      return '<pre><code>' + code.trim() + '</code></pre>';
+    });
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Italic
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // Newlines to <br> (outside pre blocks)
+    html = html.replace(/\n/g, '<br>');
+
+    return '<p>' + html + '</p>';
+  }
+
+});
+</script>
+</body>
+</html>

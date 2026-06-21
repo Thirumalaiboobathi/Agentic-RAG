@@ -1,0 +1,115 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# agents.yaml — central configuration for the multi-agent system
+#
+# Everything that changes between environments or business contexts lives here,
+# NOT in code. Edit this file to:
+#   - add organization names the Knowledge Brain agent recognises
+#   - change which Bedrock model the agents use
+#   - tune guardrail rules
+#   - adjust routing keywords for the orchestrator
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ── LLM (AWS Bedrock) — model set via BEDROCK_MODEL_ID in .env ───────────────
+llm:
+  provider: "bedrock"
+  model_id: "${BEDROCK_MODEL_ID}"
+  region: "us-east-1"
+  temperature: 0.0          # deterministic for routing + SQL framing
+  max_tokens: 2048
+
+# ── Organizations the Knowledge Brain agent serves ───────────────────────────
+# If a user query mentions any of these names (or aliases), the orchestrator
+# routes to the Knowledge Brain agent (OpenSearch retrieval).
+organizations:
+  - name: "OTB"
+    aliases: ["otb", "observability platform", "on the beach"]
+    description: "eCommerce observability platform"
+  - name: "Acme Corp"
+    aliases: ["acme", "acme corporation"]
+    description: "Internal demo organization"
+
+# ── OpenSearch (reuse existing RAG pipeline domain) ──────────────────────────
+opensearch:
+  host: "${OPENSEARCH_HOST}"
+  index_name: "${OPENSEARCH_INDEX_NAME}"
+  use_aws_auth: false                   # false = basic auth (local); true = SigV4 (prod)
+  embedding_model_id: "amazon.titan-embed-text-v2:0"
+  embedding_dimensions: 1024            # Titan V2 supports 256|512|1024 (NOT 1536)
+  top_k: 5
+
+# ── PostgreSQL (RDS) — SQL Agent target + eval storage ───────────────────────
+postgres:
+  host: "${POSTGRES_HOST}"
+  port: 5432
+  database: "${POSTGRES_DB}"
+  user: "${POSTGRES_USER}"
+  password: "${POSTGRES_PASSWORD}"
+  # Tables the SQL agent is ALLOWED to query (allowlist — security)
+  allowed_tables:
+    - "orders"
+    - "products"
+    - "customers"
+    - "order_items"
+
+# ── Research Agent (Google Custom Search API) ────────────────────────────────
+research:
+  google_api_key: "${GOOGLE_API_KEY}"
+  google_cse_id: "${GOOGLE_CSE_ID}"     # Custom Search Engine ID
+  num_results: 5                        # how many URLs to fetch
+  max_urls_to_read: 3                   # read top N in detail
+  fetch_timeout_seconds: 10
+  max_chars_per_page: 5000              # truncate long pages
+
+# ── Orchestrator routing hints ───────────────────────────────────────────────
+# These keywords help the orchestrator (alongside the LLM decision).
+routing:
+  sql_keywords:
+    - "how many"
+    - "total"
+    - "count"
+    - "sum"
+    - "average"
+    - "orders"
+    - "products"
+    - "revenue"
+    - "sales"
+    - "yesterday"
+    - "last week"
+    - "this month"
+  # If no org match and no SQL keyword → Research Agent (default fallback)
+
+# ── Guardrails ───────────────────────────────────────────────────────────────
+guardrails:
+  # Input guard — block SQL injection attempts in user queries
+  sql_injection:
+    enabled: true
+    # If any pattern matches the raw user query, the request is blocked.
+    patterns:
+      - "(?i)\\b(drop|delete|truncate|alter)\\s+(table|database)\\b"
+      - "(?i);\\s*(drop|delete|update|insert)\\b"
+      - "(?i)\\bunion\\s+select\\b"
+      - "(?i)--\\s*$"
+      - "(?i)'\\s*or\\s*'?1'?\\s*=\\s*'?1"
+      - "(?i)\\bexec(\\s|\\()"
+  # Output guard — mask PII in the final response before sending to client
+  pii_masking:
+    enabled: true
+    # Each pattern's matches are replaced with the given mask.
+    rules:
+      - name: "email"
+        pattern: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+        mask: "[EMAIL_REDACTED]"
+      - name: "phone_india"
+        pattern: "(?:\\+91[\\-\\s]?)?[6-9]\\d{9}"
+        mask: "[PHONE_REDACTED]"
+      - name: "phone_generic"
+        pattern: "\\+?\\d{1,3}[\\-\\s]?\\(?\\d{2,4}\\)?[\\-\\s]?\\d{3,4}[\\-\\s]?\\d{3,4}"
+        mask: "[PHONE_REDACTED]"
+
+# ── Evaluation capture ───────────────────────────────────────────────────────
+evaluation:
+  enabled: true
+  store: "postgres"             # writes to agent_traces table in RDS
+  table_name: "agent_traces"
+  # Also emit a structured log line to CloudWatch for every trace
+  cloudwatch_log: true

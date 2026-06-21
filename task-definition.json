@@ -1,0 +1,59 @@
+{
+  "family": "multi-agent-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/multi-agent-task-role",
+  "containerDefinitions": [
+    {
+      "name": "multi-agent-api",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/multi-agent-api:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "AWS_REGION",          "value": "us-east-1"},
+        {"name": "OPENSEARCH_HOST",     "value": "https://search-rag-vector-domain-xxx.us-east-1.es.amazonaws.com"},
+        {"name": "POSTGRES_HOST",       "value": "your-rds-endpoint.xxxx.us-east-1.rds.amazonaws.com"},
+        {"name": "POSTGRES_DB",         "value": "agentdb"},
+        {"name": "POSTGRES_USER",       "value": "agent"}
+      ],
+      "secrets": [
+        {
+          "name": "POSTGRES_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:multi-agent/postgres-password"
+        },
+        {
+          "name": "GOOGLE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:multi-agent/google-api-key"
+        },
+        {
+          "name": "GOOGLE_CSE_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:multi-agent/google-cse-id"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 20
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/multi-agent-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

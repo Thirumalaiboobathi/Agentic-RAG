@@ -1,0 +1,67 @@
+# docker-compose.yml
+# -------------------
+# Local testing stack for the multi-agent system.
+#
+#   postgres  — local PostgreSQL (stands in for RDS during local dev)
+#   api       — the multi-agent WebSocket server
+#
+# Bedrock, OpenSearch, and Google CSE always call the REAL services
+# (no good local emulators), so your .env must have valid AWS creds and
+# a Google API key. Only PostgreSQL is local here.
+#
+# Usage:
+#   docker-compose up --build
+#   # then connect a WebSocket client to ws://localhost:8000/ws/agent
+#
+#   docker-compose down -v        # -v also removes the postgres volume
+
+version: "3.9"
+
+services:
+
+  # ── Local PostgreSQL (stands in for RDS) ──────────────────────────────────
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agentpass
+      POSTGRES_DB: agentdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d agentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Multi-agent API ───────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      # Point at the local postgres container
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: agentdb
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agentpass
+      # These come from your .env (real services)
+      OPENSEARCH_HOST: ${OPENSEARCH_HOST}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GOOGLE_CSE_ID: ${GOOGLE_CSE_ID}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    # Mount AWS credentials so boto3 (Bedrock + OpenSearch SigV4) works locally
+    volumes:
+      - ~/.aws:/home/appuser/.aws:ro
+    restart: unless-stopped
+
+volumes:
+  pgdata:
