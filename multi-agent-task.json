@@ -1,0 +1,37 @@
+{
+  "family": "multi-agent-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::767925118223:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::767925118223:role/rag-ingestion-task-role",
+  "containerDefinitions": [
+    {
+      "name": "multi-agent",
+      "image": "767925118223.dkr.ecr.us-east-1.amazonaws.com/multi-agent:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "BEDROCK_MODEL_ID", "value": "us.amazon.nova-lite-v1:0"},
+        {"name": "OPENSEARCH_HOST", "value": "https://search-rag-vector-domain-gvwtzow2d2xkhmneaxudqqju2u.us-east-1.es.amazonaws.com"},
+        {"name": "OPENSEARCH_INDEX_NAME", "value": "rag-vector-index"},
+        {"name": "AWS_REGION", "value": "us-east-1"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/multi-agent",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

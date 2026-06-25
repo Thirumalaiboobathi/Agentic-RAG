@@ -14,7 +14,7 @@ is only consulted when rules don't give a confident answer.
 """
 
 import logging
-
+import re
 from langchain_core.prompts import ChatPromptTemplate
 
 from graph.state import AgentState
@@ -26,18 +26,89 @@ logger = logging.getLogger(__name__)
 _ORG_ALIASES = settings.all_org_aliases()
 _SQL_KEYWORDS = [k.lower() for k in settings.routing["sql_keywords"]]
 
+_WEATHER_KEYWORDS = [
+    "weather",
+    "temperature",
+    "forecast",
+    "rain",
+    "raining",
+    "humidity",
+    "wind",
+    "climate",
+    "hot",
+    "cold",
+    "sunny",
+    "cloudy",
+    "storm",
+]
 
-_CLASSIFY_PROMPT = """Classify the user's question into exactly ONE category:
+_BMI_KEYWORDS = [
+    "bmi",
+    "body mass index",
+    "height",
+    "weight",
+    "obesity",
+    "ideal weight"
+]
 
-- "knowledge": questions about internal organization documents, policies, runbooks, SLAs
-- "sql": questions asking for counts, totals, sums, or data about orders/products/customers
-- "research": general knowledge, current events, anything needing a web search
+_DRUG_KEYWORDS = [
+    "drug",
+    "medicine",
+    "tablet",
+    "capsule",
+    "paracetamol",
+    "ibuprofen",
+    "aspirin",
+    "dosage",
+    "side effect",
+    "interaction"
+]
 
-Respond with ONLY the category word: knowledge, sql, or research.
 
-Question: {question}
-Category:"""
+_CLASSIFY_PROMPT = """
+Classify the user's question into exactly ONE category.
 
+- knowledge
+- sql
+- weather
+- bmi
+- drug
+- research
+
+Definitions:
+
+knowledge:
+Questions about internal documents, policies, SOPs and medical knowledge.
+
+sql:
+Questions asking for counts, totals or database information.
+
+weather:
+Current weather, forecast, rain, humidity, temperature.
+
+bmi:
+Questions asking to calculate BMI, body mass index, ideal weight, or containing both height and weight.
+
+drug:
+Questions about medicines, dosage, side effects, interactions, warnings, tablets or capsules.
+
+research:
+Everything else.
+
+Respond with ONLY one word:
+
+knowledge
+sql
+weather
+bmi
+drug
+research
+
+Question:
+{question}
+
+Category:
+"""
 
 def _check_org_match(query: str) -> str | None:
     """Return canonical org name if any alias appears in the query, else None."""
@@ -53,6 +124,49 @@ def _check_sql_keywords(query: str) -> bool:
     """Return True if the query contains data-question keywords."""
     q_lower = query.lower()
     return any(kw in q_lower for kw in _SQL_KEYWORDS)
+
+def _check_weather_keywords(query: str) -> bool:
+    """Return True if the query contains weather-related keywords."""
+    q_lower = query.lower()
+    return any(keyword in q_lower for keyword in _WEATHER_KEYWORDS)
+
+
+def _check_bmi(query: str):
+
+    q = query.lower()
+
+    if any(k in q for k in [
+        "bmi",
+        "body mass index",
+        "calculate bmi",
+        "ideal weight",
+    ]):
+        return True
+
+    has_height = re.search(r"\d+(\.\d+)?\s*cm", q)
+    has_weight = re.search(r"\d+(\.\d+)?\s*kg", q)
+
+    return bool(has_height and has_weight)
+
+
+def _check_drug(query):
+    q = query.lower()
+    
+    keywords = [
+        "drug",
+        "medicine",
+        "tablet",
+        "capsule",
+        "dosage",
+        "dose",
+        "side effect",
+        "interaction",
+        "contraindication",
+        "uses",
+        "warnings",
+    ]
+
+    return any(k in q for k in keywords)
 
 
 async def orchestrator_node(state: AgentState) -> dict:
@@ -83,6 +197,52 @@ async def orchestrator_node(state: AgentState) -> dict:
             "routing_reason": "Query contains data-question keywords",
             "detected_org": None,
         }
+    if _check_weather_keywords(query):
+        if emit:
+            await emit(
+                "agent_selected",
+                "weather",
+                "Routing to Weather Agent"
+            )
+
+        return {
+            "selected_agent": "weather",
+            "routing_reason": "Query contains weather keywords",
+            "detected_org": None,
+        }
+    # ── Rule 4: BMI → BMI Agent ───────────────────────────────────────
+    if _check_bmi(query):
+
+        if emit:
+            await emit(
+                "agent_selected",
+                "bmi",
+                "Routing to BMI Agent"
+            )
+
+        return {
+            "selected_agent": "bmi",
+            "routing_reason": "BMI calculation request",
+            "detected_org": None,
+    }
+    # ── Rule 5: Drug → Drug Agent ──────────────────────────────────────
+    if _check_drug(query):
+
+        if emit:
+            await emit(
+                "agent_selected",
+                "drug",
+                "Routing to Drug Information Agent"
+            )
+
+        return {
+            "selected_agent": "drug",
+            "routing_reason": "Drug information request",
+            "detected_org": None,
+    }
+
+    
+        
 
     # ── Rule 3: LLM classification for ambiguous cases ────────────────────────
     prompt = ChatPromptTemplate.from_template(_CLASSIFY_PROMPT)
@@ -94,6 +254,15 @@ async def orchestrator_node(state: AgentState) -> dict:
         selected = "knowledge"
     elif "sql" in decision:
         selected = "sql"
+    elif "weather" in decision:
+        selected = "weather"
+    
+    elif "bmi" in decision:
+        selected = "bmi"
+
+    elif "drug" in decision:
+        selected = "drug"
+
     else:
         selected = "research"   # default fallback
 

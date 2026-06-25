@@ -43,3 +43,6 @@ lxml>=5.1.0
 pyyaml>=6.0.1
 python-dotenv>=1.0.0
 tenacity>=8.2.0               # retry logic for Bedrock throttling
+
+# ── Research Agent (Tavily Search) ───────────────────────────────────────────
+tavily-python>=0.7.12
