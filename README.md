@@ -59,29 +59,71 @@ The platform is designed around **LLMOps principles**, incorporating secure requ
 
 ---
 
-# 🏗️ High-Level Architecture
+## 🏗️ Architecture
 
-> Replace the image below with your generated architecture diagram.
-
-<p align="center">
-
-![Architecture](images/system-architecture.png)
-
-</p>
+```text
+React Frontend (Netlify)
+        │
+        │ WSS
+        ▼
+Amazon CloudFront
+        │
+        ▼
+Application Load Balancer
+        │
+        ▼
+FastAPI WebSocket Server
+        │
+        ▼
+Input Guardrails
+        │
+        ▼
+LangGraph Orchestrator
+        │
+        ▼
+Specialized AI Agent
+        │
+        ▼
+Titan Embeddings
+        │
+        ▼
+Amazon OpenSearch Serverless
+        │
+        ▼
+Amazon Bedrock
+        │
+        ▼
+Output Guardrails
+        │
+        ▼
+Validated AI Response
+```
 
 ---
 
-# 🔄 End-to-End LLMOps Pipeline
+## 🤖 Multi-Agent Workflow
 
-> Replace the image below with your generated LLMOps pipeline diagram.
-
-<p align="center">
-
-![LLMOps Pipeline](images/llmops-pipeline.png)
-
-</p>
+```text
+User Query
+     │
+     ▼
+Intent Detection
+     │
+     ▼
+Agent Selection
+     │
+     ▼
+Semantic Retrieval
+     │
+     ▼
+Foundation Model
+     │
+     ▼
+Validated Response
+```
 
 ---
+
 
 # ⚙️ System Workflow
 
