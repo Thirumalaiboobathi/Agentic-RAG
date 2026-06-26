@@ -36,7 +36,6 @@ from agents.sql_agent import sql_agent_node
 from agents.research_agent import research_agent_node
 from agents.author_agent import author_agent_node
 from evaluation.evaluator import evaluator_node
-from agents.weather_agent import weather_agent_node
 from agents.bmi_agents import bmi_agent_node
 from agents.drug_agent import drug_agent_node
 
@@ -90,7 +89,7 @@ def build_graph():
     graph.add_node("sql", sql_agent_node)
     graph.add_node("research", research_agent_node)
     graph.add_node("author", author_agent_node)
-    graph.add_node("weather",weather_agent_node)
+   
     graph.add_node("bmi",bmi_agent_node)
     graph.add_node("drug",drug_agent_node)
     graph.add_node("evaluator", evaluator_node)
@@ -128,15 +127,11 @@ def build_graph():
     graph.add_edge("knowledge", "author")
     graph.add_edge("sql", "author")
     graph.add_edge("research", "author")
-    graph.add_edge("weather", "author")
     graph.add_edge("bmi", "author")
     graph.add_edge("drug", "author")
 
     graph.add_edge("author", "evaluator")
-   
 
-    # author → evaluator → END
-    graph.add_edge("weather", "evaluator")
 
     # blocked → evaluator (we still log blocked requests for evaluation)
     graph.add_edge("blocked", "evaluator")

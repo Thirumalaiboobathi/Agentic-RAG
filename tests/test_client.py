@@ -55,5 +55,5 @@ if __name__ == "__main__":
     # How GenAI differs from Traditional AI 
     # What is in the science paper about photosynthesis from internal document
 
-    query = sys.argv[1] if len(sys.argv) > 1 else "What orders were placed from past one week? Show me the order details."
+    query = sys.argv[1] if len(sys.argv) > 1 else "What appointments were placed from past one week? Show me the order details."
     asyncio.run(run(query))

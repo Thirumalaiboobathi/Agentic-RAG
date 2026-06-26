@@ -26,21 +26,6 @@ logger = logging.getLogger(__name__)
 _ORG_ALIASES = settings.all_org_aliases()
 _SQL_KEYWORDS = [k.lower() for k in settings.routing["sql_keywords"]]
 
-_WEATHER_KEYWORDS = [
-    "weather",
-    "temperature",
-    "forecast",
-    "rain",
-    "raining",
-    "humidity",
-    "wind",
-    "climate",
-    "hot",
-    "cold",
-    "sunny",
-    "cloudy",
-    "storm",
-]
 
 _BMI_KEYWORDS = [
     "bmi",
@@ -125,10 +110,6 @@ def _check_sql_keywords(query: str) -> bool:
     q_lower = query.lower()
     return any(kw in q_lower for kw in _SQL_KEYWORDS)
 
-def _check_weather_keywords(query: str) -> bool:
-    """Return True if the query contains weather-related keywords."""
-    q_lower = query.lower()
-    return any(keyword in q_lower for keyword in _WEATHER_KEYWORDS)
 
 
 def _check_bmi(query: str):
@@ -197,20 +178,6 @@ async def orchestrator_node(state: AgentState) -> dict:
             "routing_reason": "Query contains data-question keywords",
             "detected_org": None,
         }
-    if _check_weather_keywords(query):
-        if emit:
-            await emit(
-                "agent_selected",
-                "weather",
-                "Routing to Weather Agent"
-            )
-
-        return {
-            "selected_agent": "weather",
-            "routing_reason": "Query contains weather keywords",
-            "detected_org": None,
-        }
-    # ── Rule 4: BMI → BMI Agent ───────────────────────────────────────
     if _check_bmi(query):
 
         if emit:
@@ -254,8 +221,6 @@ async def orchestrator_node(state: AgentState) -> dict:
         selected = "knowledge"
     elif "sql" in decision:
         selected = "sql"
-    elif "weather" in decision:
-        selected = "weather"
     
     elif "bmi" in decision:
         selected = "bmi"
