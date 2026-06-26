@@ -240,14 +240,6 @@ Amazon Bedrock
 Grounded Clinical Response
 ```
 
-> Replace this section with your generated RAG architecture image.
-
-<p align="center">
-
-![Agentic RAG](images/rag-pipeline.png)
-
-</p>
-
 ### Why Agentic RAG?
 
 Unlike traditional chatbots that rely solely on foundation models, Agentic RAG ensures that every response is generated using the most relevant enterprise knowledge.
@@ -311,16 +303,6 @@ WebSocket Streaming
       ▼
 React Frontend
 ```
-
-> Replace this section with your generated LLMOps pipeline image.
-
-<p align="center">
-
-![LLMOps](images/llmops.png)
-
-</p>
-
----
 
 # ☁️ AWS Cloud-Native Deployment
 
